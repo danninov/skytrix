@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix Rain - Vertical Letters</title>
+    <meta property="og:title" content="Matrix Rain - Vertical Letters">
+    <meta property="og:description" content="A mesmerizing Matrix effect using real-time Bluesky's post.">
+    <meta property="og:image" content="https://skytrix.danni.id/skytrix.png">
+    <meta property="og:url" content="https://skytrix.danni.id">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <title>Skytrix - Bluesky's Post</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: black;
+            color: limegreen;
+            font-family: monospace;
+            font-size: 14px; /* Adjust font size for readability */
+        }
+        .matrix-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .matrix-column {
+            position: absolute;
+            animation: rain 4s linear infinite;
+            will-change: transform, opacity; /* GPU acceleration hint */
+        }
+        .matrix-letter {
+            display: block;
+            text-align: center;
+        }
+        @keyframes rain {
+            from {
+                top: -100px;
+                opacity: 1;
+            }
+            to {
+                top: 100vh;
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="matrix-container" id="matrix-container"></div>
+    <script>
+        // WebSocket URL
+        const websocketUrl = "wss://jetstream2.us-west.bsky.network/subscribe?wantedCollections=app.bsky.feed.post";
+
+        // DOM container
+        const container = document.getElementById('matrix-container');
+
+        // Max active animations and message queue
+        const maxActiveColumns = 100; // Maximum number of text columns on the screen
+        const messageQueue = [];
+        const batchInterval = 500; // Batch process interval in ms
+
+        // Function to create a vertical column of letters
+        function createMatrixColumn(text) {
+            const columnElement = document.createElement('div');
+            columnElement.classList.add('matrix-column');
+            columnElement.style.left = Math.random() * 100 + 'vw'; // Random horizontal position
+            columnElement.style.animationDuration = (Math.random() * 3 + 3) + 's'; // Random animation duration
+
+            // Split text into individual characters and add to the column
+            [...text].forEach(char => {
+                const letterElement = document.createElement('span');
+                letterElement.classList.add('matrix-letter');
+                letterElement.textContent = char;
+                columnElement.appendChild(letterElement);
+            });
+
+            container.appendChild(columnElement);
+
+            // Remove column after animation ends
+            columnElement.addEventListener('animationend', () => {
+                container.removeChild(columnElement);
+            });
+
+            // Remove old columns if too many are active
+            const activeColumns = document.querySelectorAll('.matrix-column');
+            if (activeColumns.length > maxActiveColumns) {
+                container.removeChild(activeColumns[0]);
+            }
+        }
+
+        // Set up WebSocket
+        const socket = new WebSocket(websocketUrl);
+
+        socket.onopen = () => {
+            console.log("Connected to WebSocket");
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data && data.commit && data.commit.record && data.commit.record.text) {
+                    messageQueue.push(data.commit.record.text);
+                }
+            } catch (error) {
+                console.error("Error parsing WebSocket message:", error);
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error("WebSocket error:", error);
+        };
+
+        socket.onclose = () => {
+            console.log("WebSocket connection closed");
+        };
+
+        // Process message queue in batches
+        setInterval(() => {
+            if (messageQueue.length > 0) {
+                const batch = messageQueue.splice(0, 5); // Process up to 5 messages at a time
+                batch.forEach(createMatrixColumn);
+            }
+        }, batchInterval);
+    </script>
+</body>
+</html>
+
