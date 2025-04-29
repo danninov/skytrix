@@ -29,9 +29,9 @@
         .matrix-column {
             position: absolute;
             animation: rain 4s linear infinite;
-            /* Remove will-change for columns that aren't moving */
-            will-change: transform; /* Only transform needs GPU acceleration */
-            transform: translateZ(0); /* Force GPU rendering more efficiently */
+            will-change: transform; /* Limit GPU acceleration */
+            opacity: 0.85; /* Slightly reduce opacity for better performance */
+            pointer-events: none; /* Prevent interaction to save CPU */
         }
         .matrix-letter {
             display: block;
@@ -73,30 +73,32 @@
             columnElement.style.left = Math.random() * 100 + 'vw';
             columnElement.style.animationDuration = (Math.random() * 3 + 3) + 's';
             
-            // Create fewer DOM elements by batching characters
-            const batchSize = 5;
+            // Create individual letters but fewer of them
             const textArray = [...truncatedText];
+            // Only use a subset of characters to reduce DOM elements
+            const skipFactor = Math.max(1, Math.floor(textArray.length / 20)); // Show at most ~20 characters per column
             
-            for (let i = 0; i < textArray.length; i += batchSize) {
+            for (let i = 0; i < textArray.length; i += skipFactor) {
                 const letterElement = document.createElement('span');
                 letterElement.classList.add('matrix-letter');
-                letterElement.textContent = textArray.slice(i, i + batchSize).join('');
+                letterElement.textContent = textArray[i];
                 columnElement.appendChild(letterElement);
             }
 
-            // Use DocumentFragment for better performance
-            const fragment = document.createDocumentFragment();
-            fragment.appendChild(columnElement);
-            container.appendChild(fragment);
+            container.appendChild(columnElement);
 
             // Remove column after animation ends
             columnElement.addEventListener('animationend', () => {
-                container.removeChild(columnElement);
+                if (columnElement.parentNode === container) {
+                    container.removeChild(columnElement);
+                }
             });
 
             // More efficient removal of old columns
             if (container.children.length > maxActiveColumns) {
-                container.removeChild(container.firstChild);
+                if (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                }
             }
         }
 
@@ -129,13 +131,16 @@
         // Throttle processing to reduce CPU load
         const throttledInterval = 1000; // Increase interval to 1 second
 
-        // Process message queue in batches
+        // Process message queue in batches with debouncing
+        let processingActive = false;
         setInterval(() => {
-            if (messageQueue.length > 0) {
-                const batch = messageQueue.splice(0, 3); // Process fewer messages at a time
+            if (!processingActive && messageQueue.length > 0) {
+                processingActive = true;
+                const batch = messageQueue.splice(0, 2); // Process fewer messages at a time
                 batch.forEach(createMatrixColumn);
+                setTimeout(() => { processingActive = false; }, 200);
             }
-        }, throttledInterval);
+        }, 1000); // Longer interval to reduce processing frequency
     </script>
 </body>
 </html>
