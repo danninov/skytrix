@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Matrix Rain - Vertical Letters</title>
-    <meta property="og:title" content="Matrix Rain - Vertical Letters">
-    <meta property="og:description" content="A mesmerizing Matrix effect using real-time Bluesky's post.">
+    <title>Skytrix - Live Bluesky's Post</title>
+    <meta property="og:title" content="Skytrix - Live Bluesky's Post">
+    <meta property="og:description" content="Real-time Bluesky's post in Matrix-like format.">
     <meta property="og:image" content="https://skytrix.danni.id/skytrix.png">
     <meta property="og:url" content="https://skytrix.danni.id">
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
-    <title>Skytrix - Bluesky's Post</title>
+    <title>Skytrix - Live Bluesky's Post</title>
     <style>
         body {
             margin: 0;
@@ -29,7 +29,9 @@
         .matrix-column {
             position: absolute;
             animation: rain 4s linear infinite;
-            will-change: transform, opacity; /* GPU acceleration hint */
+            /* Remove will-change for columns that aren't moving */
+            will-change: transform; /* Only transform needs GPU acceleration */
+            transform: translateZ(0); /* Force GPU rendering more efficiently */
         }
         .matrix-letter {
             display: block;
@@ -61,32 +63,40 @@
         const messageQueue = [];
         const batchInterval = 500; // Batch process interval in ms
 
-        // Function to create a vertical column of letters
+        // Function to create a vertical column of letters - optimized version
         function createMatrixColumn(text) {
+            // Limit text length to reduce DOM elements
+            const truncatedText = text.length > 50 ? text.substring(0, 50) + "..." : text;
+            
             const columnElement = document.createElement('div');
             columnElement.classList.add('matrix-column');
-            columnElement.style.left = Math.random() * 100 + 'vw'; // Random horizontal position
-            columnElement.style.animationDuration = (Math.random() * 3 + 3) + 's'; // Random animation duration
-
-            // Split text into individual characters and add to the column
-            [...text].forEach(char => {
+            columnElement.style.left = Math.random() * 100 + 'vw';
+            columnElement.style.animationDuration = (Math.random() * 3 + 3) + 's';
+            
+            // Create fewer DOM elements by batching characters
+            const batchSize = 5;
+            const textArray = [...truncatedText];
+            
+            for (let i = 0; i < textArray.length; i += batchSize) {
                 const letterElement = document.createElement('span');
                 letterElement.classList.add('matrix-letter');
-                letterElement.textContent = char;
+                letterElement.textContent = textArray.slice(i, i + batchSize).join('');
                 columnElement.appendChild(letterElement);
-            });
+            }
 
-            container.appendChild(columnElement);
+            // Use DocumentFragment for better performance
+            const fragment = document.createDocumentFragment();
+            fragment.appendChild(columnElement);
+            container.appendChild(fragment);
 
             // Remove column after animation ends
             columnElement.addEventListener('animationend', () => {
                 container.removeChild(columnElement);
             });
 
-            // Remove old columns if too many are active
-            const activeColumns = document.querySelectorAll('.matrix-column');
-            if (activeColumns.length > maxActiveColumns) {
-                container.removeChild(activeColumns[0]);
+            // More efficient removal of old columns
+            if (container.children.length > maxActiveColumns) {
+                container.removeChild(container.firstChild);
             }
         }
 
@@ -116,13 +126,16 @@
             console.log("WebSocket connection closed");
         };
 
+        // Throttle processing to reduce CPU load
+        const throttledInterval = 1000; // Increase interval to 1 second
+
         // Process message queue in batches
         setInterval(() => {
             if (messageQueue.length > 0) {
-                const batch = messageQueue.splice(0, 5); // Process up to 5 messages at a time
+                const batch = messageQueue.splice(0, 3); // Process fewer messages at a time
                 batch.forEach(createMatrixColumn);
             }
-        }, batchInterval);
+        }, throttledInterval);
     </script>
 </body>
 </html>
